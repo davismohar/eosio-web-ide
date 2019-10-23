@@ -1,12 +1,67 @@
 #include <eosio/eosio.hpp>
 #include "token.hpp"
 
-class [[epsio::eosio::contract]] escrow_contract : public::contract {
+class [[epsio::contract]] escrow_contract : public::contract {
     using eosio::contract::contract;
+
+    //holdings table, keeps track of who has how many coins
+    struct [[eosio::table]] holdingsTable {
+      uint64_t pkey;
+      bool flag;
+      name accountHolder;
+      asset amount;
+      uint64_t primary_key(){ const {return pkey};}
+    };
+
+    //contracts table, keeps track of current contracts
+    struct [[eosio::table]] contractsTable {
+      uint64_t pkey;
+      bool flag;
+      name party1;
+      bool party1HasCompletedContract;
+      name party2;
+      bool party2HasCompletedContract;
+      asset amount;
+      uint64_t primary_key(){ const {return pkey};}
+    };
+    //metrics table, keeps track of account metrics
+    struct [[eosio::table]] metricsTable {
+      uint64_t pkey;
+      bool flag;
+      name accountHolder;
+      int totalContractCount;
+      int successfulContractCount;
+      int releaseCount;
+      uint64_t primary_key(){ const {return pkey};}
+    };
+
     [[eosio::action]]
     void createcontract(name acnt1, name acnt2, asset amt) {
-        is_account(acnt1);
-        is_account(acnt2);
+        //if both are valid accounts
+        if (is_account(acnt1) || is_account(acnt2)) {
+            require_auth(acnt1);
+            require_auth(acnt2);
+            //add new contract to table
+            table contractsTable(get_self(), get_self().value);
+            contractsTable.emplace(get_self(), [&](auto& elem) {
+                elem.party1 = acnt1;
+                elem.party2 = acnt2;
+                elem.party1HasCompletedContract = false;
+                elem.party2HasCompletedContract = false;
+                elem.amount = amt;
+            });
+            //add 1 to metricstable for each account
+            table metricsTable(get_self, get_self().value);
+            const auto& iter = metricsTable.find(acnt1);
+            metricsTable.modify(iter, get_self(), [&](auto& elem) {
+                elem.totalContractCount++;
+            });
+            iter = metricsTable.find(acnt2);
+            metricsTable.modify(iter, get_self(), [&](auto& elem) {
+                elem.totalContractCount++;
+            });
+
+        }
     }
 
 }
