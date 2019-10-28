@@ -37,7 +37,7 @@ class [[epsio::contract]] escrow_contract : public::contract {
 
     [[eosio::action]]
     void createcontract(name acnt1, name acnt2, asset amt) {
-        //if both are valid accounts
+        //check if both are valid accounts
         if (is_account(acnt1) || is_account(acnt2)) {
             require_auth(acnt1);
             require_auth(acnt2);
@@ -64,7 +64,35 @@ class [[epsio::contract]] escrow_contract : public::contract {
         }
     }
 
-}
+    void release(name acnt) {
+        if (is_account(acnt)) {
+            require_auth(acnt);
+            //check if any contracts have this account in them by looping through the table
+            table contractsTable(get_self(), get_self().value);
+            bool foundContract = false;
+            for (const auto& elem: contractsTable) {
+                //if we find one, notify them and erase from the table
+                if (elem.party1 == acnt || elem.party2 == acnt) {
+                    foundContract = true;
+                    require_recipient(elem.party1);
+                    require_recipient(elem.party2);
+                    contractsTable.erase(elem);
+                }
+            }
+            //if we did not find an existing contract
+            if (!foundContract) {
+                table holdingsTable(get_self(), get_self().value);
+                const auto& elem = holdingsTable.find(acnt);
+                //set value to zero
+                elem.amount = 0;
+                //remove account from table
+                holdingsTable.erase(elem);
+            }
+
+        }
+    }
+
+};
 void token::deposit(name acnt, asset amt) {
     print_f("Account (%) deposited %\n", acnt, amt);
     const auto& iter = recs.find(acnt.value);
