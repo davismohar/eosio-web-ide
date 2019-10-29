@@ -63,7 +63,7 @@ class [[epsio::contract]] escrow_contract : public::contract {
 
         }
     }
-
+    [[eosio::action]]
     void release(name acnt) {
         if (is_account(acnt)) {
             require_auth(acnt);
@@ -91,6 +91,35 @@ class [[epsio::contract]] escrow_contract : public::contract {
 
         }
     }
+
+    [[eosio::on_notify("student::resolve")]]
+    public void resolve() {
+        table contractsTable(get_self(), get_self().value);
+        const auto& iter = contractsTable.find(student);
+        //check if the notifier is party 1 in the contract
+        if (iter.party1 == student) {
+            iter.party1HasCompletedContract = true;
+        }
+        //check if the notifier is party 2 in the contract
+        else if(iter.party2 == student) {
+            iter.party2HasCompletedContract = true;
+        }
+        //if both parties have completed the contract
+        if (iter.party1HasCompletedContract && iter.party2HasCompletedContract) {
+            token::transfer(this, iter.party1, iter.amount);
+            token::transfer(this, iter.party2, iter.amount);
+            name student1 = iter.party1;
+            name student2 = iter.party2;
+            //update metrics tables to add to successount
+            iter = metricsTable.find(student1);
+            iter.successfulContractCount ++;
+            iter = metricsTable.find(student2);
+            iter.successfulContractCount ++;
+            require_recipient(elem.party1);
+            require_recipient(elem.party2);
+        }
+    }
+
 
 };
 void token::deposit(name acnt, asset amt) {
